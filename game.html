@@ -1,0 +1,153 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport"
+content="width=device-width,initial-scale=1">
+<title>Sh4d0w Playground</title>
+<style>
+body {
+ margin:0;
+ overflow:hidden;
+ font-family:Arial;
+}
+#menu {
+ position:absolute;
+ top:10px;
+ left:10px;
+ background:#06152ee8;
+ color:white;
+ padding:15px;
+ border:2px solid #009dff;
+ border-radius:15px;
+ z-index:10;
+}
+button {
+ background:#103b68;
+ color:white;
+ padding:12px;
+ margin:5px;
+ border:1px solid #00aaff;
+ border-radius:8px;
+}
+.active {background:#008cff}
+#controls {
+ position:absolute;
+ bottom:20px;
+ width:100%;
+ text-align:center;
+}
+</style>
+</head>
+<body>
+
+<div id="menu">
+ <h2>Sh4d0w Menu</h2>
+ <button onclick="toggleFly(this)">Fly</button>
+ <button onclick="platform()">Platforms</button>
+ <button onclick="gravity(this)">Low Gravity</button>
+</div>
+
+<div id="controls">
+ <button onclick="move(-1)">◀</button>
+ <button onclick="jump()">JUMP</button>
+ <button onclick="move(1)">▶</button>
+ <button onclick="rise()">UP</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+// 3D playground
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+
+const camera = new THREE.PerspectiveCamera(
+ 75,innerWidth/innerHeight,0.1,1000
+);
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(
+ 0xffffff,0x445544,2
+));
+
+function cube(x,y,z,w,h,d,color) {
+ const mesh = new THREE.Mesh(
+  new THREE.BoxGeometry(w,h,d),
+  new THREE.MeshStandardMaterial({color})
+ );
+ mesh.position.set(x,y,z);
+ scene.add(mesh);
+ return mesh;
+}
+
+// Grass and player
+cube(0,-0.5,0,100,1,100,0x38a34a);
+const player=cube(0,1,0,1,1,1,0x0066ff);
+
+camera.position.set(0,4,9);
+camera.lookAt(0,1,0);
+
+let fly=false;
+let lowGravity=false;
+let velocity=0;
+
+function toggleFly(btn) {
+ fly=!fly;
+ btn.classList.toggle("active",fly);
+ velocity=0;
+}
+
+function gravity(btn) {
+ lowGravity=!lowGravity;
+ btn.classList.toggle("active",lowGravity);
+}
+
+function platform() {
+ cube(
+  player.position.x,
+  player.position.y-1,
+  player.position.z,
+  3,0.3,3,0x008cff
+ );
+}
+
+function move(direction) {
+ player.position.x+=direction;
+}
+
+function jump() {
+ if(fly) player.position.y+=1;
+ else if(player.position.y<=1.01)
+ velocity=0.19;
+}
+
+function rise() {
+ if(fly) player.position.y+=0.5;
+}
+
+function animate() {
+ requestAnimationFrame(animate);
+
+ if(!fly) {
+  velocity-=lowGravity?0.001:0.006;
+  player.position.y+=velocity;
+
+  if(player.position.y<1) {
+   player.position.y=1;
+   velocity=0;
+  }
+ }
+
+ camera.position.x=player.position.x;
+ camera.position.y=player.position.y+3;
+ camera.lookAt(player.position);
+
+ renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
