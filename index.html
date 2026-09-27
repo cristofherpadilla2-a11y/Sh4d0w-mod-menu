@@ -1,77 +1,101 @@
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport"
-content="width=device-width,initial-scale=1">
-<title>Sh4d0w Playground</title>
+ content="width=device-width,initial-scale=1">
+<title>Sh4d0w VR</title>
+
 <style>
 body {
- margin:0;
- overflow:hidden;
- font-family:Arial;
+  margin: 0;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
 }
-#menu {
- position:absolute;
- top:10px;
- left:10px;
- background:#06152ee8;
- color:white;
- padding:15px;
- border:2px solid #009dff;
- border-radius:15px;
- z-index:10;
-}
-button {
- background:#103b68;
- color:white;
- padding:12px;
- margin:5px;
- border:1px solid #00aaff;
- border-radius:8px;
-}
-.active {background:#008cff}
 #controls {
- position:absolute;
- bottom:20px;
- width:100%;
- text-align:center;
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  background: #06152eee;
+  border: 2px solid #008cff;
+  border-radius: 15px;
+  padding: 12px;
+  color: white;
+}
+h2 { color: #48baff; margin: 5px; }
+button {
+  display: block;
+  margin: 8px 0;
+  padding: 12px;
+  width: 160px;
+  background: #12365c;
+  border: 1px solid #00aaff;
+  border-radius: 8px;
+  color: white;
+}
+button.on { background: #007bff; }
+#VRButton {
+  left: auto !important;
+  right: 10px !important;
 }
 </style>
+
+<script type="importmap">
+{
+ "imports": {
+  "three":
+   "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":
+   "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+ }
+}
+</script>
 </head>
+
 <body>
 
-<div id="menu">
- <h2>Sh4d0w Menu</h2>
- <button onclick="toggleFly(this)">Fly</button>
- <button onclick="platform()">Platforms</button>
- <button onclick="gravity(this)">Low Gravity</button>
-</div>
-
 <div id="controls">
- <button onclick="move(-1)">◀</button>
- <button onclick="jump()">JUMP</button>
- <button onclick="move(1)">▶</button>
- <button onclick="rise()">UP</button>
+<h2>Sh4d0w Menu</h2>
+<button id="fly">Fly: OFF</button>
+<button id="platform">Spawn Platform</button>
+<button id="gravity">Low Gravity: OFF</button>
+<p id="status">Ready!</p>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script>
-// 3D playground
+<script type="module">
+import * as THREE from "three";
+import { VRButton } from
+ "three/addons/webxr/VRButton.js";
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
+scene.background = new THREE.Color(0x78bfff);
 
 const camera = new THREE.PerspectiveCamera(
- 75,innerWidth/innerHeight,0.1,1000
+ 75, innerWidth / innerHeight, 0.1, 1000
 );
 
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(innerWidth,innerHeight);
+const renderer = new THREE.WebGLRenderer({
+ antialias: true
+});
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 
+document.body.appendChild(
+ VRButton.createButton(renderer)
+);
+
 scene.add(new THREE.HemisphereLight(
- 0xffffff,0x445544,2
+ 0xffffff, 0x445544, 2
 ));
+
+const rig = new THREE.Group();
+rig.add(camera);
+scene.add(rig);
+
+camera.position.set(0, 1.6, 5);
 
 function cube(x,y,z,w,h,d,color) {
  const mesh = new THREE.Mesh(
@@ -83,71 +107,254 @@ function cube(x,y,z,w,h,d,color) {
  return mesh;
 }
 
-// Grass and player
-cube(0,-0.5,0,100,1,100,0x38a34a);
-const player=cube(0,1,0,1,1,1,0x0066ff);
+// Playground
+cube(0,-0.5,0,60,1,60,0x38a34a);
 
-camera.position.set(0,4,9);
-camera.lookAt(0,1,0);
+for(let i=0;i<12;i++) {
+ const x=Math.sin(i*2)*15;
+ const z=Math.cos(i*2)*15;
+ cube(x,1,z,1,2,1,0x795333);
+ cube(x,3,z,3,2,3,0x27883b);
+}
 
+// Soccer ball
+const ball = new THREE.Mesh(
+ new THREE.SphereGeometry(.35,24,16),
+ new THREE.MeshStandardMaterial({
+  color:0xffffff
+ })
+);
+ball.position.set(0,.4,-4);
+scene.add(ball);
+
+// Abilities
 let fly=false;
 let lowGravity=false;
 let velocity=0;
+let grounded=true;
 
-function toggleFly(btn) {
+const status=document.getElementById("status");
+
+function toggleFly() {
  fly=!fly;
- btn.classList.toggle("active",fly);
  velocity=0;
+ updateButtons();
 }
 
-function gravity(btn) {
+function toggleGravity() {
  lowGravity=!lowGravity;
- btn.classList.toggle("active",lowGravity);
+ updateButtons();
 }
 
-function platform() {
+function spawnPlatform() {
+ const direction=new THREE.Vector3();
+ camera.getWorldDirection(direction);
+ direction.y=0;
+ direction.normalize();
+
  cube(
-  player.position.x,
-  player.position.y-1,
-  player.position.z,
-  3,0.3,3,0x008cff
+  rig.position.x+direction.x*2,
+  rig.position.y-.15,
+  rig.position.z+direction.z*2,
+  3,.3,3,0x008cff
  );
+ status.textContent="Platform spawned!";
 }
 
-function move(direction) {
- player.position.x+=direction;
+function updateButtons() {
+ const f=document.getElementById("fly");
+ const g=document.getElementById("gravity");
+ f.textContent="Fly: "+(fly?"ON":"OFF");
+ g.textContent="Low Gravity: "+
+  (lowGravity?"ON":"OFF");
+ f.classList.toggle("on",fly);
+ g.classList.toggle("on",lowGravity);
 }
 
-function jump() {
- if(fly) player.position.y+=1;
- else if(player.position.y<=1.01)
- velocity=0.19;
+document.getElementById("fly")
+ .onclick=toggleFly;
+document.getElementById("platform")
+ .onclick=spawnPlatform;
+document.getElementById("gravity")
+ .onclick=toggleGravity;
+
+// VR controllers
+const controllers=[];
+let left=null;
+let right=null;
+
+for(let i=0;i<2;i++){
+ const controller=renderer.xr.getController(i);
+ controller.addEventListener("connected",e=>{
+  controller.gamepad=e.data.gamepad;
+  if(e.data.handedness==="left") left=controller;
+  if(e.data.handedness==="right") right=controller;
+ });
+ controller.addEventListener("disconnected",()=>{
+  if(left===controller)left=null;
+  if(right===controller)right=null;
+ });
+ rig.add(controller);
+ controllers.push(controller);
 }
 
-function rise() {
- if(fly) player.position.y+=0.5;
+// Wrist menu
+const wrist=new THREE.Group();
+wrist.position.set(0,.13,-.22);
+wrist.rotation.x=-.45;
+wrist.visible=false;
+
+const panel=new THREE.Mesh(
+ new THREE.PlaneGeometry(.3,.42),
+ new THREE.MeshBasicMaterial({
+  color:0x06152e,
+  side:THREE.DoubleSide
+ })
+);
+wrist.add(panel);
+
+const buttons=[];
+const labels=[
+ "SH4D0W",
+ "Fly",
+ "Platforms",
+ "Low Gravity"
+];
+
+function label(text,y,size) {
+ const canvas=document.createElement("canvas");
+ canvas.width=512;
+ canvas.height=128;
+ const ctx=canvas.getContext("2d");
+ ctx.fillStyle="#48baff";
+ ctx.font="bold "+size+"px Arial";
+ ctx.textAlign="center";
+ ctx.fillText(text,256,85);
+ const texture=new THREE.CanvasTexture(canvas);
+ const mesh=new THREE.Mesh(
+  new THREE.PlaneGeometry(.28,.07),
+  new THREE.MeshBasicMaterial({
+   map:texture,
+   transparent:true,
+   side:THREE.DoubleSide
+  })
+ );
+ mesh.position.set(0,y,.005);
+ wrist.add(mesh);
+ return mesh;
 }
 
-function animate() {
- requestAnimationFrame(animate);
+label(labels[0],.15,55);
 
- if(!fly) {
-  velocity-=lowGravity?0.001:0.006;
-  player.position.y+=velocity;
+const actions=[
+ toggleFly,
+ spawnPlatform,
+ toggleGravity
+];
 
-  if(player.position.y<1) {
-   player.position.y=1;
+for(let i=0;i<3;i++){
+ const y=.045-i*.105;
+ const button=new THREE.Mesh(
+  new THREE.PlaneGeometry(.26,.085),
+  new THREE.MeshBasicMaterial({
+   color:0x075aa5,
+   side:THREE.DoubleSide
+  })
+ );
+ button.position.set(0,y,.01);
+ button.userData.action=actions[i];
+ wrist.add(button);
+ buttons.push(button);
+ label(labels[i+1],y,44);
+}
+
+const raycaster=new THREE.Raycaster();
+const tempMatrix=new THREE.Matrix4();
+let previousY=false;
+let previousTrigger=false;
+
+function updateVR(dt){
+ if(!renderer.xr.isPresenting)return;
+
+ if(left && wrist.parent!==left){
+  left.add(wrist);
+ }
+
+ const gamepad=left?.gamepad;
+
+ if(gamepad){
+  // Quest left-controller Y button
+  const y=!!gamepad.buttons[5]?.pressed;
+  if(y&&!previousY){
+   wrist.visible=!wrist.visible;
+  }
+  previousY=y;
+
+  const stickX=gamepad.axes[2]||0;
+  const stickY=gamepad.axes[3]||0;
+
+  const direction=new THREE.Vector3();
+  camera.getWorldDirection(direction);
+  const side=new THREE.Vector3()
+   .crossVectors(direction,new THREE.Vector3(0,1,0))
+   .normalize();
+
+  if(!fly)direction.y=0;
+  direction.normalize();
+
+  rig.position.addScaledVector(direction,-stickY*dt*3);
+  rig.position.addScaledVector(side,stickX*dt*3);
+
+  if(fly && gamepad.buttons[1]?.pressed)
+   rig.position.y+=dt*2;
+ }
+
+ if(right?.gamepad && wrist.visible){
+  const trigger=!!right.gamepad.buttons[0]?.pressed;
+
+  tempMatrix.identity()
+   .extractRotation(right.matrixWorld);
+  raycaster.ray.origin.setFromMatrixPosition(
+   right.matrixWorld
+  );
+  raycaster.ray.direction.set(0,0,-1)
+   .applyMatrix4(tempMatrix);
+
+  const hits=raycaster.intersectObjects(buttons);
+  if(trigger&&!previousTrigger&&hits.length){
+   hits[0].object.userData.action();
+  }
+  previousTrigger=trigger;
+ }
+}
+
+// Game loop
+let last=0;
+
+renderer.setAnimationLoop(time=>{
+ const dt=Math.min((time-last)/1000,.05);
+ last=time;
+
+ updateVR(dt);
+
+ if(!fly){
+  velocity-=(lowGravity?2:9.8)*dt;
+  rig.position.y+=velocity*dt;
+  if(rig.position.y<0){
+   rig.position.y=0;
    velocity=0;
+   grounded=true;
   }
  }
 
- camera.position.x=player.position.x;
- camera.position.y=player.position.y+3;
- camera.lookAt(player.position);
-
  renderer.render(scene,camera);
-}
-animate();
+});
+
+addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
 </script>
 </body>
 </html>
